@@ -1,29 +1,198 @@
 #!/bin/bash
-SITE=$1
-#TYPE=$2
 
-LUSER="favio"
-GIT_USERNAME="favrik"
-SITES_FOLDER="/home/favio/web"
+# =============================================================================
+# Configurable stuff
+# =============================================================================
 
-cd $SITES_FOLDER
+# Our $HOME reference
+THE_HOME="${HOME?"\$HOME is not set"}"
 
-su $LUSER -c "git clone git@kloverfield.com:$SITE.git"
+# The file system location where you place all your web projects
+SITES_FOLDER="$THE_HOME/web"
 
-#if ! test -z "$TYPE" ; then
-#    su $LUSER -c "git clone git@github.com:$GIT_USERNAME/${TYPE}_project_skeleton.git $SITE"
-#    rm -fr $SITE/.git
-#fi
+# Where the apache web logs are stored; could be used for other types of logs
+LOGS_DIR=$SITES_FOLDER/logs
 
-mkdir -p $SITE/public
-mkdir -p $SITE/data/logs
+# Our user reference
+THE_USER=`logname`
 
-chown -R $LUSER:$LUSER $SITE
+DB_USER="root"
+DB_PASS=""
+
+# The repo used to fetch skeleton projects
+SKELETON_REPO="git@github.com:favrik/"
+
+# %skeleton% is replaced by the skeleton project name
+#
+# So if your rails skeleton is named "rails_starter" you can do something like
+# $ sudo mksite -p rails_starter mybeautifulsite.com
+# and the program will try to clone the rails_starter_project_skeleton.git repo
+SKELETON_NAME_TEMPLATE="%skeleton%_project_skeleton"
+
+# This assumes you are using gitolite.
+#
+# If using github, you could try someting like https://github.com/defunkt/hub
+# and modifying the mksite_repo function.
+REPO_CONF_PATH="$THE_HOME/gitserver/gitolite-admin/conf"
+
+# The default keys that will have access to the newly created repo
+REPO_KEYS="key favio_kiroro favio_windows favio_kloverfield"
+
+# The git server where we create all repos
+REPO_URL="git@kloverfield.com:"
+
+# =============================================================================
+# End of configurable stuff
+# =============================================================================
 
 
-function vhost
-{
-    echo "<VirtualHost *:80>
+USAGE="Usage: sudo mksite [-p SKELETON] SITE_NAME [OPTION]"
+
+function mksite_minihelp() {
+  echo "$USAGE
+
+no- syntax
+b  =  database
+v  =  vhost conf
+d  =  directory
+g  =  git repository
+h  =  entry in /etc/hosts
+
+Examples:
+  sudo mksite example.com            create everything
+  sudo mksite example.com no-b       create everything but database
+  sudo mksite -p ci example.com      create everything and use ci skeleton
+
+For more info: mksite -h or mksite --help
+  "
+}
+
+function mksite_help() {
+  echo "$USAGE
+
+SITE_NAME can be almost anything (any valid URL character)
+and it will be used as the hostname.
+
+By default 'mksite' creates SITE_NAME:
+
+  - VHOST configuration (v)
+  - directory (d)
+  - database (b)
+  - git repository (g)
+  - initial .gitignore file
+  - entry in /etc/hosts (h)
+
+So it needs 'sudo' for some of the tasks. The letters in
+parenthesis can be used as an abbreviation when excluding
+actions; the .gitignore is always created if creating the
+repo.
+
+Examples:
+
+  # Creates everything
+  mksite example.com
+
+  # Creates everything but database, git repository, and .gitignore
+  mksite example.com no-bgi
+
+  # Creates everything; additionally, initializes the project with a
+  # CodeIgniter application skeleton
+  mksite -p ci example.com
+
+  "
+}
+
+function mksite_chown() {
+  chown -R $THE_USER:$THE_USER $SITES_FOLDER/$1
+  chown -R $THE_USER:$THE_USER $LOGS_DIR/$1
+}
+
+function mksite_run() {
+  local skeleton=""
+
+  while getopts ":p:" opt; do
+    case $opt in
+      p)
+        #echo "-p was triggered, Parameter: $OPTARG" >&2
+        skeleton=$OPTARG
+        ;;
+     \?)
+        echo "Invalid option: -$OPTARG" >&2
+        exit 1
+        ;;
+      :)
+        echo "Option -$OPTARG requires an argument." >&2
+        exit 1
+        ;;
+    esac
+  done
+
+  [ -n "$skeleton" ] && site=$3 || site=$1
+  [ -n "$skeleton" ] && option=$4 || option=$2
+
+  if [ -n "$option" ] ; then
+    if [ "${option:0:3}" == "no-" ] ; then
+      option=${option:3}
+    fi
+  fi
+
+  if [[ $option != *b* ]]; then
+    mksite_database $site
+  fi
+
+  if [[ $option != *v* ]]; then
+    mksite_vhost $site
+  fi
+
+  if [[ $option != *h* ]]; then
+    mksite_hosts $site
+  fi
+
+  if [[ $option != *d* ]]; then
+    mksite_dir $site
+  fi
+
+  if [[ $option != *g* ]]; then
+    mksite_repo $site
+  fi
+
+  if [[ $option != *d* ]]; then
+    mkdir -p $SITES_FOLDER/$site/public
+  fi
+
+  if [ -n "$skeleton" ] ; then
+    mksite_skeleton $skeleton $site
+  fi
+
+  mksite_chown $site
+
+  echo "
+  Done.  Yay!
+ "
+}
+
+function mksite_dir() {
+  mkdir -p $1
+  mkdir -p $LOGS_DIR/$1
+  mksite_chown $1
+}
+
+function mksite_skeleton() {
+  local SKELETON=$1
+  local SITE=$2
+  local NAME=$(echo "$SKELETON_NAME_TEMPLATE" | sed "s/%skeleton%/$SKELETON/g")
+  mkdir -p $SITES_FOLDER/$SITE/tmp
+  chown $THE_USER:$THE_USER $SITES_FOLDER/$SITE/tmp
+  cd $SITES_FOLDER/$SITE/tmp
+  su $THE_USER -c "git clone $SKELETON_REPO$NAME.git ."
+  rm -fr $SITES_FOLDER/$SITE/tmp/.git
+  cp -r $SITES_FOLDER/$SITE/tmp/* $SITES_FOLDER/$SITE/
+  rm -fr $SITES_FOLDER/$SITE/tmp
+}
+
+function mksite_vhost() {
+  local SITE=$1
+  echo "<VirtualHost *:80>
         ServerAdmin webmaster@$SITE
         ServerName $SITE
         DocumentRoot $SITES_FOLDER/$SITE/public
@@ -33,15 +202,78 @@ function vhost
                 Order allow,deny
                 allow from all
         </Directory>
-        CustomLog $SITES_FOLDER/$SITE/data/logs/apache-access.log combined
-        ErrorLog  $SITES_FOLDER/$SITE/data/logs/apache-error.log
+        CustomLog $LOGS_DIR/$SITE/access.log combined
+        ErrorLog $LOGS_DIR/$SITE/error.log
+        RewriteLog $LOGS_DIR/$SITE/rewrite.log
+        RewriteLogLevel 9
         LogLevel warn
-        ServerSignature On
-</VirtualHost>"
-
+</VirtualHost>
+  " > /etc/apache2/sites-available/$SITE
+  a2ensite $SITE
+  /etc/init.d/apache2 restart
 }
 
-echo "127.0.0.1 $SITE" >> /etc/hosts
-vhost > /etc/apache2/sites-available/$SITE
-a2ensite $SITE
-/etc/init.d/apache2 reload
+function mksite_hosts() {
+  echo "127.0.0.1 $1" >> /etc/hosts
+}
+
+function mksite_gitignore() {
+  local SITE=$1
+
+  echo "
+*.swp
+data/*
+_notes
+.DS_Store
+
+  " > $SITE/.gitignore
+}
+
+function mksite_repo() {
+  local SITE=$1
+
+  echo "
+repo $SITE
+    RW = $REPO_KEYS
+" >> $REPO_CONF_PATH/gitolite.conf
+
+  cd $REPO_CONF_PATH
+  su $THE_USER -c "git add ."
+  su $THE_USER -c "git commit -m 'Add $SITE repo and give access to: $REPO_KEYS'"
+  su $THE_USER -c "git push"
+
+  cd $SITES_FOLDER/$SITE
+  su $THE_USER -c "git clone $REPO_URL$SITE.git ."
+  mksite_gitignore $SITES_FOLDER/$SITE
+  touch README
+  su $THE_USER -c "git add ."
+  su $THE_USER -c "git commit -m 'Add ignore file and README file'"
+  su $THE_USER -c "git push origin master"
+}
+
+function mksite_database() {
+  local SITE=$1
+  local PASS_PARAM=""
+
+  if [ -n "$DB_PASS" ] ; then
+    PASS_PARAM="-p$DB_PASS"
+  fi
+
+  mysql -u $DB_USER $PASS_PARAM -e "CREATE DATABASE $SITE"
+}
+
+# Actual execution
+cd $SITES_FOLDER
+
+case "$1" in
+  "")
+    echo "$(mksite_minihelp)" >&2
+    ;;
+  "-h" | "--help")
+    echo "$(mksite_help)" >&2
+    ;;
+  *)
+    mksite_run $@
+    ;;
+esac
+
