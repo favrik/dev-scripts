@@ -140,10 +140,6 @@ function mksite_run() {
     mksite_database $site
   fi
 
-  if [[ $option != *v* ]]; then
-    mksite_vhost $site
-  fi
-
   if [[ $option != *h* ]]; then
     mksite_hosts $site
   fi
@@ -158,6 +154,10 @@ function mksite_run() {
 
   if [[ $option != *d* ]]; then
     mkdir -p $SITES_FOLDER/$site/public
+  fi
+
+  if [[ $option != *v* ]]; then
+    mksite_vhost $site
   fi
 
   if [ -n "$skeleton" ] ; then
