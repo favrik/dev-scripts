@@ -10,7 +10,7 @@ Linux-like environments.
 Detailed help is provided by the `sudo ./mksite -h` command.  Here's the
 output:
 
-    Usage: sudo mksite [-p SKELETON] SITE_NAME [OPTION]
+    Usage: sudo ./mksite [-p SKELETON] SITE_NAME [OPTION]
 
     SITE_NAME can be almost anything (any valid URL character)
     and it will be used as the hostname.
@@ -32,14 +32,14 @@ output:
     Examples:
 
       # Creates everything
-      mksite example.com
+      sudo ./mksite example.com
 
       # Creates everything but database, git repository, and .gitignore
-      mksite example.com no-bgi
+      sudo ./mksite example.com no-bgi
 
       # Creates everything; additionally, initializes the project with a
       # CodeIgniter application skeleton
-      mksite -p ci example.com
+      sudo ./mksite -p ci example.com
 
 The script can be customized by simply changing the variables defined
 at the top of the file according to your custom environment.  However,

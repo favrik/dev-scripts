@@ -46,7 +46,7 @@ REPO_URL="git@kloverfield.com:"
 # =============================================================================
 
 
-USAGE="Usage: sudo mksite [-p SKELETON] SITE_NAME [OPTION]"
+USAGE="Usage: sudo ./mksite [-p SKELETON] SITE_NAME [OPTION]"
 
 function mksite_minihelp() {
   echo "$USAGE
