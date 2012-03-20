@@ -254,6 +254,7 @@ function mksite_database() {
     PASS_PARAM="-p$DB_PASS"
   fi
 
+  # Need to add check if site name has a - char (not valid DB name)
   mysql -u $DB_USER $PASS_PARAM -e "CREATE DATABASE $SITE"
 }
 
