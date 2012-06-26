@@ -14,7 +14,15 @@ SITES_FOLDER="$THE_HOME/web"
 LOGS_DIR=$SITES_FOLDER/logs
 
 # Our user reference
-THE_USER=`logname`
+THE_USER=`logname 2>/dev/null`
+RETVAL=$?
+[ $RETVAL -eq 1 ] && THE_USER=$LOGNAME
+
+if [ -z "$THE_USER" ]; then
+  echo "Could not find username :("
+  exit 1
+fi
+
 
 DB_USER="root"
 DB_PASS=""
