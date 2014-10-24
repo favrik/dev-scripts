@@ -1,6 +1,14 @@
 sudo ./mksite
 ======
 
+
+
+## TODO
+* Update vhost template
+* Update vhost file creation (now needs a .conf extension)
+* Extract configuration
+
+
 `sudo ./mksite` is a command-line program that pretends to automate the *local* setup
 of a web development project.
 
